@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"io"
 	"io/fs"
@@ -12,11 +13,12 @@ import (
 	"golang.org/x/tools/txtar"
 )
 
-const description = "txtar creates a `txtar` archive from a directory, respecting `.gitignore` rules."
+const description = "txtar creates a `txtar` archive from a directory, respecting `.gitignore` rules or from config file."
 
 type app struct {
-	In  string `arg:"" help:"input directory" default:"."`
-	Out string `arg:"" help:"output file, defaults to stdout" default:""`
+	In     string `arg:"" help:"input directory" default:"."`
+	Out    string `arg:"" help:"output file, defaults to stdout" default:""`
+	Config string `short:"c" help:"File containing new line separated list of paths to archived, ignores in directory"`
 }
 
 type shouldSkipFunc func(relPath string) bool
@@ -31,17 +33,53 @@ func main() {
 }
 
 func (a *app) Run() error {
-	shouldSkipFn, err := gitignoredSkipper(filepath.Join(a.In, ".gitignore"))
+	var archive *txtar.Archive
+	var err error
+	if a.Config != "" {
+		archive, err = archiveFilesFromConfig(a.Config)
+	} else {
+		archive, err = archiveFilesInDir(a.In)
+	}
 	if err != nil {
 		return err
 	}
-
-	archive, err := createArchive(a.In, shouldSkipFn)
-	if err != nil {
-		return err
-	}
-
 	return writeArchive(archive, a.Out)
+}
+
+func archiveFilesFromConfig(configFile string) (*txtar.Archive, error) {
+	file, err := os.Open(configFile)
+	if err != nil {
+		return nil, fmt.Errorf("error opening file: %w", err)
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	archive := &txtar.Archive{}
+	for scanner.Scan() {
+		path := scanner.Text()
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return nil, fmt.Errorf("error reading file: %w", err)
+		}
+		file := txtar.File{
+			Name: path,
+			Data: content,
+		}
+		archive.Files = append(archive.Files, file)
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("error scanning file: %w", err)
+	}
+	return archive, nil
+}
+
+func archiveFilesInDir(inDir string) (*txtar.Archive, error) {
+	shouldSkipFn, err := gitignoredSkipper(filepath.Join(inDir, ".gitignore"))
+	if err != nil {
+		return nil, err
+	}
+	return createArchive(inDir, shouldSkipFn)
 }
 
 func gitignoredSkipper(gitignorePath string) (shouldSkipFunc, error) {

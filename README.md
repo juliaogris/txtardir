@@ -9,13 +9,14 @@ rules.
 
 ## Usage
 
-	Usage: txtardir [<in> [<out>]]
+	Usage: txtardir [<in> [<out>]] [flags]
 
-	txtar is a tool to create a txtar archive from a directory. It ignores files according to a top-level .gitignore file if present
+	txtar creates a `txtar` archive from a directory, respecting `.gitignore` rules or from a config file.
 
 	Arguments:
 	  [<in>]     input directory
 	  [<out>]    output file, defaults to stdout
 
 	Flags:
-	  -h, --help    Show context-sensitive help.
+	  -h, --help             Show context-sensitive help.
+	  -c, --config=STRING    File containing new line separated list of paths to archived, ignores in directory
